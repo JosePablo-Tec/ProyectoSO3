@@ -24,7 +24,7 @@ function Drive({ usuario }) {
   }, [usuario]);
 
   const entrarADirectorio = (ruta) => {
-    fetch("/api/user/getRuta", {
+    fetch("/api/user/ruta", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: usuario, ruta }),

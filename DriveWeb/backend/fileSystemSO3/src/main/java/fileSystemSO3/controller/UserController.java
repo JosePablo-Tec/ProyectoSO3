@@ -10,6 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.*;
+import fileSystemSO3.util.EspacioUtils;
+
 
 @RestController
 @RequestMapping("/api/user")
@@ -24,7 +26,8 @@ public class UserController {
 
     try {
       int size = Integer.parseInt(sizeStr);
-      if (size <= 0) return ResponseEntity.badRequest().body("El tamaño debe ser mayor a cero.");
+      if (size <= 0)
+        return ResponseEntity.badRequest().body("El tamaño debe ser mayor a cero.");
 
       Map<String, Object> raiz = new HashMap<>();
       raiz.put("tipo", "directorio");
@@ -57,7 +60,7 @@ public class UserController {
       return ResponseEntity.status(500).body("Error: " + e.getMessage());
     }
   }
-  
+
   @GetMapping("/{username}")
   public ResponseEntity<?> getUserDrive(@PathVariable String username) {
     String filePath = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/" + username
@@ -71,120 +74,31 @@ public class UserController {
     }
   }
 
-  @PostMapping("/upload")
-  public ResponseEntity<String> subirArchivo(@RequestBody Map<String, String> body) {
+  @PostMapping("/espacio")
+  public ResponseEntity<?> obtenerEspacio(@RequestBody Map<String, String> body) {
     String username = body.get("username");
-    String nombre = body.get("nombreArchivo");
-    String extension = body.get("extension");
-    String contenido = body.get("contenido");
-    String ruta = body.get("ruta");
 
-    String pathJson = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/" + username + ".json";
-
+    String filePath = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/" + username
+        + ".json";
     try {
-      String jsonStr = Files.readString(Paths.get(pathJson));
+      String jsonStr = Files.readString(Paths.get(filePath));
       ObjectMapper mapper = new ObjectMapper();
       Map<String, Object> usuario = mapper.readValue(jsonStr, Map.class);
+
+      int tamanoTotal = (int) usuario.get("tamanoTotal");
       Map<String, Object> estructura = (Map<String, Object>) usuario.get("estructura");
+      int usado = EspacioUtils.calcularEspacio(estructura);
+      int disponible = tamanoTotal - usado;
 
-      Map<String, Object> actual = obtenerDirectorioDesdeRuta(estructura, ruta);
-      if (actual == null) return ResponseEntity.badRequest().body("Ruta inválida");
+      Map<String, Integer> respuesta = new HashMap<>();
+      respuesta.put("total", tamanoTotal);
+      respuesta.put("usado", usado);
+      respuesta.put("disponible", disponible);
 
-      List<Map<String, Object>> contenidoActual = (List<Map<String, Object>>) actual.get("contenido");
-
-      Map<String, Object> archivoNuevo = new HashMap<>();
-      archivoNuevo.put("tipo", "archivo");
-      archivoNuevo.put("nombre", nombre);
-      archivoNuevo.put("extension", extension);
-      archivoNuevo.put("contenido", contenido);
-      archivoNuevo.put("fechaCreacion", LocalDateTime.now().toString());
-      archivoNuevo.put("fechaModificacion", LocalDateTime.now().toString());
-      archivoNuevo.put("tamano", contenido.length());
-
-      contenidoActual.add(archivoNuevo);
-
-      FileWriter writer = new FileWriter(pathJson);
-      writer.write(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(usuario));
-      writer.close();
-
-      return ResponseEntity.ok("Archivo subido correctamente.");
+      return ResponseEntity.ok(respuesta);
     } catch (IOException e) {
-      return ResponseEntity.status(500).body("Error al procesar el archivo: " + e.getMessage());
+      return ResponseEntity.status(500).body("Error al obtener el espacio.");
     }
   }
 
-  @PostMapping("/ruta")
-  public ResponseEntity<?> getContenidoRuta(@RequestBody Map<String, String> body) {
-    String username = body.get("username");
-    String ruta = body.get("ruta");
-
-    String basePath = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/" + username + ".json";
-    try {
-      String contenidoJSON = Files.readString(Paths.get(basePath));
-      ObjectMapper mapper = new ObjectMapper();
-      Map<String, Object> json = mapper.readValue(contenidoJSON, Map.class);
-      Map<String, Object> estructura = (Map<String, Object>) json.get("estructura");
-
-      Map<String, Object> actual = obtenerDirectorioDesdeRuta(estructura, ruta);
-      if (actual == null) return ResponseEntity.badRequest().body("Ruta no encontrada");
-
-      List<Map<String, Object>> resultado = (List<Map<String, Object>>) actual.get("contenido");
-      return ResponseEntity.ok(resultado);
-    } catch (IOException e) {
-      return ResponseEntity.status(500).body("Error al acceder al usuario.");
-    }
-  }
-
-  @PostMapping("/mkdir")
-  public ResponseEntity<String> crearDirectorio(@RequestBody Map<String, String> body) {
-    String username = body.get("username");
-    String nombreDirectorio = body.get("nombreDirectorio");
-    String ruta = body.get("ruta");
-
-    String filePath = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/" + username + ".json";
-
-    try {
-      String contenidoJSON = Files.readString(Paths.get(filePath));
-      ObjectMapper mapper = new ObjectMapper();
-      Map<String, Object> json = mapper.readValue(contenidoJSON, Map.class);
-      Map<String, Object> estructura = (Map<String, Object>) json.get("estructura");
-
-      Map<String, Object> actual = obtenerDirectorioDesdeRuta(estructura, ruta);
-      if (actual == null) return ResponseEntity.badRequest().body("Ruta inválida");
-
-      List<Map<String, Object>> contenido = (List<Map<String, Object>>) actual.get("contenido");
-
-      Map<String, Object> nuevoDirectorio = new HashMap<>();
-      nuevoDirectorio.put("tipo", "directorio");
-      nuevoDirectorio.put("nombre", nombreDirectorio);
-      nuevoDirectorio.put("contenido", new ArrayList<>());
-
-      contenido.add(nuevoDirectorio);
-
-      mapper.writeValue(Paths.get(filePath).toFile(), json);
-
-      return ResponseEntity.ok("Directorio creado con éxito.");
-    } catch (IOException e) {
-      return ResponseEntity.status(500).body("Error al crear el directorio: " + e.getMessage());
-    }
-  }
-
-  private Map<String, Object> obtenerDirectorioDesdeRuta(Map<String, Object> estructura, String ruta) {
-    String[] partes = ruta.replaceFirst("/", "").split("/");
-    Map<String, Object> actual = (Map<String, Object>) estructura.get(partes[0]);
-
-    for (int i = 1; i < partes.length; i++) {
-      List<Map<String, Object>> hijos = (List<Map<String, Object>>) actual.get("contenido");
-      boolean encontrado = false;
-      for (Map<String, Object> hijo : hijos) {
-        if (hijo.get("nombre").equals(partes[i]) && "directorio".equals(hijo.get("tipo"))) {
-          actual = hijo;
-          encontrado = true;
-          break;
-        }
-      }
-      if (!encontrado) return null;
-    }
-    return actual;
-  }
 }
