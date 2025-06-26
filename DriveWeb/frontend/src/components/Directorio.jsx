@@ -243,9 +243,6 @@ function Directorio({
     return (Array.isArray(contenido) ? contenido : []).map((item, i) =>
       item.tipo === "archivo" ? (
         <li key={i}>
-<<<<<<< Updated upstream
-          📄 {item.nombre}.{item.extension}
-=======
           📄 {item.nombre}.{item.extension}{" "}
           {item.extension === "txt" && (
             <>
@@ -253,7 +250,6 @@ function Directorio({
             <button onClick={() => borrarArchivo(item)}>🗑️ Borrar</button>
             </>
           )}
->>>>>>> Stashed changes
         </li>
       ) : (
         <li
