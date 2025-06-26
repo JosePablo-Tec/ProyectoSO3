@@ -49,4 +49,34 @@ public class EspacioUtils {
     }
     return suma;
   }
+
+  @SuppressWarnings("unchecked")
+  public static Map<String, Object> obtenerArchivoDesdeRuta(Map<String, Object> estructura, String ruta) {
+    String[] partes = ruta.split("/");
+    Map<String, Object> actual = estructura;
+    for (int i = 1; i < partes.length - 1; i++) {
+      String nombreDir = partes[i];
+      Map<String, Object> siguiente = null;
+      List<Map<String, Object>> contenido = (List<Map<String, Object>>) actual.get("contenido");
+      for (Map<String, Object> item : contenido) {
+        if ("directorio".equals(item.get("tipo")) && nombreDir.equals(item.get("nombre"))) {
+          siguiente = item;
+          break;
+        }
+      }
+      if (siguiente == null) return null;
+      actual = siguiente;
+    }
+
+    String nombreArchivo = partes[partes.length - 1].replace(".txt", "");
+    List<Map<String, Object>> contenido = (List<Map<String, Object>>) actual.get("contenido");
+    for (Map<String, Object> item : contenido) {
+      if ("archivo".equals(item.get("tipo")) && nombreArchivo.equals(item.get("nombre")) && "txt".equals(item.get("extension"))) {
+        return item;
+      }
+    }
+    return null;
+}
+
+
 }

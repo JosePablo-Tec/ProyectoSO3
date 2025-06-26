@@ -84,5 +84,50 @@ public class FileController {
     }
   }
 
+
+  @PostMapping("/share")
+public ResponseEntity<String> compartirArchivo(@RequestBody Map<String, String> body) {
+  String usuarioOrigen = body.get("usuarioOrigen");
+  String usuarioDestino = body.get("usuarioDestino");
+  String rutaArchivo = body.get("ruta"); 
+
+  String base = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/";
+  String pathOrigen = base + usuarioOrigen + ".json";
+  String pathDestino = base + usuarioDestino + ".json";
+
+  try {
+    ObjectMapper mapper = new ObjectMapper();
+    Map<String, Object> jsonOrigen = mapper.readValue(Files.readString(Paths.get(pathOrigen)), Map.class);
+    Map<String, Object> jsonDestino = mapper.readValue(Files.readString(Paths.get(pathDestino)), Map.class);
+
+    Map<String, Object> estructuraOrigen = (Map<String, Object>) jsonOrigen.get("estructura");
+    Map<String, Object> archivo = EspacioUtils.obtenerArchivoDesdeRuta(estructuraOrigen, rutaArchivo);
+
+    if (archivo == null) return ResponseEntity.badRequest().body("Archivo no encontrado o no es .txt");
+
+    Map<String, Object> estructuraDestino = (Map<String, Object>) jsonDestino.get("estructura");
+    Map<String, Object> compartida = (Map<String, Object>) estructuraDestino.get("compartida");
+    List<Map<String, Object>> contenidoCompartida = (List<Map<String, Object>>) compartida.get("contenido");
+
+    // Validar que no se duplique
+    for (Map<String, Object> item : contenidoCompartida) {
+      if (item.get("tipo").equals("archivo") &&
+          item.get("nombre").equals(archivo.get("nombre")) &&
+          item.get("extension").equals(archivo.get("extension"))) {
+        return ResponseEntity.badRequest().body("Ya existe un archivo con ese nombre en la carpeta compartida.");
+      }
+    }
+
+    // Copiar el archivo
+    contenidoCompartida.add(new HashMap<>(archivo));
+
+    // Guardar el JSON destino
+    mapper.writeValue(Paths.get(pathDestino).toFile(), jsonDestino);
+
+    return ResponseEntity.ok("Archivo compartido con éxito.");
+  } catch (IOException e) {
+    return ResponseEntity.status(500).body("Error al compartir archivo: " + e.getMessage());
+  }
+}
   
 }

@@ -15,7 +15,6 @@ function Directorio({
   const [historial, setHistorial] = useState([]);
   const [espacio, setEspacio] = useState({ total: 0, usado: 0, disponible: 0 });
 
-
   useEffect(() => {
     fetch("/api/user/ruta", {
       method: "POST",
@@ -32,19 +31,18 @@ function Directorio({
   }, [usuario, ruta]);
 
   useEffect(() => {
-  fetch("/api/user/espacio", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: usuario }),
-  })
-    .then((res) => res.json())
-    .then((data) => setEspacio(data))
-    .catch((err) => {
-      console.error(err);
-      setEspacio({ total: 0, usado: 0, disponible: 0 });
-    });
-}, [usuario, ruta]);
-
+    fetch("/api/user/espacio", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: usuario }),
+    })
+      .then((res) => res.json())
+      .then((data) => setEspacio(data))
+      .catch((err) => {
+        console.error(err);
+        setEspacio({ total: 0, usado: 0, disponible: 0 });
+      });
+  }, [usuario, ruta]);
 
   const crearDirectorio = () => {
     const yaExiste = contenido.some(
@@ -161,7 +159,7 @@ function Directorio({
 
         const nuevoContenido = await nuevaRespuesta.json();
         setContenido(nuevoContenido);
-        actualizarEspacio();  
+        actualizarEspacio();
       } catch (error) {
         console.error("Error al subir el archivo:", error);
         alert("Ocurrió un error al subir el archivo.");
@@ -188,24 +186,53 @@ function Directorio({
   };
 
   const actualizarEspacio = () => {
-  fetch("/api/user/espacio", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: usuario }),
-  })
-    .then((res) => res.json())
-    .then((data) => setEspacio(data))
-    .catch((err) => {
-      console.error("Error al actualizar espacio:", err);
-    });
-};
+    fetch("/api/user/espacio", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: usuario }),
+    })
+      .then((res) => res.json())
+      .then((data) => setEspacio(data))
+      .catch((err) => {
+        console.error("Error al actualizar espacio:", err);
+      });
+  };
 
+  const compartirArchivo = (archivo) => {
+    const destinatario = window.prompt(
+      "¿A qué usuario deseas compartir este archivo?"
+    );
+    if (!destinatario) return;
+
+    const rutaArchivo = ruta + "/" + archivo.nombre + ".txt";
+
+    fetch("/api/user/share", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        usuarioOrigen: usuario,
+        usuarioDestino: destinatario,
+        ruta: rutaArchivo,
+      }),
+    })
+      .then((res) => res.text())
+      .then((msg) => {
+        alert(msg);
+      })
+      .catch((err) => {
+        console.error("Error al compartir archivo:", err);
+        alert("Ocurrió un error al intentar compartir el archivo.");
+      });
+  };
 
   const renderContenido = (contenido) => {
     return (Array.isArray(contenido) ? contenido : []).map((item, i) =>
       item.tipo === "archivo" ? (
         <li key={i}>
-          📄 {item.nombre}.{item.extension}
+          📄 {item.nombre}.{item.extension}{" "}
+          {item.extension === "txt" && (
+            <button onClick={() => compartirArchivo(item)}>📤 Compartir</button>
+          )}
         </li>
       ) : (
         <li
@@ -225,8 +252,9 @@ function Directorio({
         {usuario} - {ruta}
       </h2>
       <p>
-      Espacio total: {espacio.total} bytes | Usado: {espacio.usado} bytes | Disponible: {espacio.disponible} bytes
-    </p>
+        Espacio total: {espacio.total} bytes | Usado: {espacio.usado} bytes |
+        Disponible: {espacio.disponible} bytes
+      </p>
 
       <div className="botones">
         <button onClick={volverAtras}>🔙 Volver</button>
