@@ -129,5 +129,59 @@ public ResponseEntity<String> compartirArchivo(@RequestBody Map<String, String> 
     return ResponseEntity.status(500).body("Error al compartir archivo: " + e.getMessage());
   }
 }
-  
+
+  @PostMapping("/delete")
+  public ResponseEntity<String> eliminarArchivo(@RequestBody Map<String, String> payload) {
+    String username = payload.get("username");
+    String ruta = payload.get("ruta"); // ejemplo: /raiz/compartida/ejemplo.txt
+
+    if (username == null || ruta == null) {
+        return ResponseEntity.badRequest().body("Datos incompletos");
+    }
+
+    String basePath = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/";
+    String pathJson = basePath + username + ".json";
+
+    try {
+        // Cargar JSON
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> usuario = mapper.readValue(Files.readString(Paths.get(pathJson)), Map.class);
+        Map<String, Object> estructura = (Map<String, Object>) usuario.get("estructura");
+
+        // Dividir ruta en partes
+        String[] partes = ruta.split("/");
+        if (partes.length < 2) {
+            return ResponseEntity.badRequest().body("Ruta inválida");
+        }
+
+        String archivoNombre = partes[partes.length - 1];
+        String nombreSinExt = archivoNombre.contains(".") ? archivoNombre.substring(0, archivoNombre.lastIndexOf(".")) : archivoNombre;
+        String extension = archivoNombre.contains(".") ? archivoNombre.substring(archivoNombre.lastIndexOf(".") + 1) : "";
+
+        // Ruta del directorio que contiene el archivo
+        String rutaPadre = ruta.substring(0, ruta.lastIndexOf("/"));
+
+        Map<String, Object> dirPadre = EspacioUtils.obtenerDirectorioDesdeRuta(estructura, rutaPadre);
+        if (dirPadre == null) {
+            return ResponseEntity.badRequest().body("No se encontró el directorio padre");
+        }
+
+        List<Map<String, Object>> contenido = (List<Map<String, Object>>) dirPadre.get("contenido");
+        boolean eliminado = contenido.removeIf(item ->
+            "archivo".equals(item.get("tipo")) &&
+            nombreSinExt.equals(item.get("nombre")) &&
+            extension.equals(item.get("extension"))
+        );
+
+        if (!eliminado) {
+            return ResponseEntity.status(404).body("Archivo no encontrado");
+        }
+
+        // Guardar cambios
+        mapper.writeValue(Paths.get(pathJson).toFile(), usuario);
+        return ResponseEntity.ok("Archivo eliminado exitosamente.");
+    } catch (IOException e) {
+        return ResponseEntity.status(500).body("Error al eliminar el archivo: " + e.getMessage());
+    }
+  }
 }

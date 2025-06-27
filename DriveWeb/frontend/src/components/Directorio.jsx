@@ -225,13 +225,58 @@ function Directorio({
       });
   };
 
+  const borrarArchivo = (archivo) => {
+    if (
+      !window.confirm(
+        `¿Estás seguro de borrar el archivo ${archivo.nombre}.txt?`
+      )
+    )
+      return;
+
+    const rutaArchivo = ruta + "/" + archivo.nombre + ".txt";
+
+    fetch("/api/user/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: usuario,
+        ruta: rutaArchivo,
+      }),
+    })
+      .then((res) => res.text())
+      .then((msg) => {
+        alert(msg);
+        // Actualizar la lista de contenido
+        setContenido((prev) =>
+          prev.filter(
+            (item) =>
+              !(
+                item.tipo === "archivo" &&
+                item.nombre === archivo.nombre &&
+                item.extension === archivo.extension
+              )
+          )
+        );
+        actualizarEspacio();
+      })
+      .catch((err) => {
+        console.error("Error al borrar archivo:", err);
+        alert("Ocurrió un error al intentar borrar el archivo.");
+      });
+  };
+
   const renderContenido = (contenido) => {
     return (Array.isArray(contenido) ? contenido : []).map((item, i) =>
       item.tipo === "archivo" ? (
         <li key={i}>
           📄 {item.nombre}.{item.extension}{" "}
           {item.extension === "txt" && (
-            <button onClick={() => compartirArchivo(item)}>📤 Compartir</button>
+            <>
+              <button onClick={() => compartirArchivo(item)}>
+                📤 Compartir
+              </button>{" "}
+              <button onClick={() => borrarArchivo(item)}>🗑️ Borrar</button>
+            </>
           )}
         </li>
       ) : (
