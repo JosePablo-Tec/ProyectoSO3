@@ -77,4 +77,58 @@ public class DirectoryController {
     }
   }
 
+  @PostMapping("/deleteDir")
+  public ResponseEntity<String> eliminarDirectorio(@RequestBody Map<String, String> body) {
+    String username = body.get("username");
+    String ruta = body.get("ruta");
+
+    if (username == null || ruta == null || ruta.equals("/") || ruta.trim().isEmpty()) {
+        return ResponseEntity.badRequest().body("Ruta inválida o intento de eliminar raíz.");
+    }
+
+    String pathJson = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/" + username + ".json";
+
+    try {
+        ObjectMapper mapper = new ObjectMapper();
+        String jsonStr = Files.readString(Paths.get(pathJson));
+        Map<String, Object> usuario = mapper.readValue(jsonStr, Map.class);
+        Map<String, Object> estructura = (Map<String, Object>) usuario.get("estructura");
+
+        // Separar la ruta en partes
+        String[] partesRuta = ruta.replaceFirst("^/", "").split("/");
+        if (partesRuta.length < 2) {
+            return ResponseEntity.badRequest().body("No se puede eliminar el directorio raíz o ruta inválida.");
+        }
+
+        // Construir la ruta del directorio padre
+        StringBuilder rutaPadre = new StringBuilder();
+        for (int i = 0; i < partesRuta.length - 1; i++) {
+            rutaPadre.append("/").append(partesRuta[i]);
+        }
+
+        // Buscar el directorio padre desde la estructura completa
+        Map<String, Object> dirPadre = EspacioUtils.obtenerDirectorioDesdeRuta(estructura, rutaPadre.toString());
+
+        if (dirPadre == null) {
+            return ResponseEntity.status(404).body("No se encontró el directorio padre: " + rutaPadre);
+        }
+
+        String nombreEliminar = partesRuta[partesRuta.length - 1];
+        List<Map<String, Object>> contenidoPadre = (List<Map<String, Object>>) dirPadre.get("contenido");
+
+        boolean eliminado = contenidoPadre.removeIf(item ->
+            "directorio".equals(item.get("tipo")) && nombreEliminar.equals(item.get("nombre"))
+        );
+
+        if (!eliminado) {
+            return ResponseEntity.status(404).body("No se encontró el directorio: " + nombreEliminar);
+        }
+
+        // Guardar el archivo actualizado
+        mapper.writeValue(Paths.get(pathJson).toFile(), usuario);
+        return ResponseEntity.ok("Directorio eliminado correctamente.");
+    } catch (IOException e) {
+        return ResponseEntity.status(500).body("Error al eliminar directorio: " + e.getMessage());
+    }
+  }
 }

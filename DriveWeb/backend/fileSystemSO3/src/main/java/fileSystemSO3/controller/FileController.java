@@ -84,10 +84,6 @@ public class FileController {
     }
   }
 
-<<<<<<< Updated upstream
-  
-}
-=======
 
   @PostMapping("/share")
 public ResponseEntity<String> compartirArchivo(@RequestBody Map<String, String> body) {
@@ -189,4 +185,3 @@ public ResponseEntity<String> compartirArchivo(@RequestBody Map<String, String> 
     }
   }
 }
->>>>>>> Stashed changes
