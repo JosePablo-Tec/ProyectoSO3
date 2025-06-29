@@ -89,7 +89,8 @@ public class FileController {
 public ResponseEntity<String> compartirArchivo(@RequestBody Map<String, String> body) {
     String usuarioOrigen = body.get("usuarioOrigen");
     String usuarioDestino = body.get("usuarioDestino");
-    String rutaArchivo = body.get("ruta"); 
+    String ruta = body.get("ruta");
+    String tipo = body.getOrDefault("tipo", "archivo"); // por defecto "archivo"
 
     String base = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/";
     String pathOrigen = base + usuarioOrigen + ".json";
@@ -101,10 +102,6 @@ public ResponseEntity<String> compartirArchivo(@RequestBody Map<String, String> 
         Map<String, Object> jsonDestino = mapper.readValue(Files.readString(Paths.get(pathDestino)), Map.class);
 
         Map<String, Object> estructuraOrigen = (Map<String, Object>) jsonOrigen.get("estructura");
-        Map<String, Object> archivo = EspacioUtils.obtenerArchivoDesdeRuta(estructuraOrigen, rutaArchivo);
-
-        if (archivo == null) return ResponseEntity.badRequest().body("Archivo no encontrado o no es .txt");
-
         Map<String, Object> estructuraDestino = (Map<String, Object>) jsonDestino.get("estructura");
         Map<String, Object> dirCompartida = (Map<String, Object>) estructuraDestino.get("compartida");
 
@@ -117,23 +114,37 @@ public ResponseEntity<String> compartirArchivo(@RequestBody Map<String, String> 
             return ResponseEntity.status(500).body("La carpeta 'compartida' no tiene contenido.");
         }
 
+        // Obtener objeto a compartir según tipo
+        Map<String, Object> objeto;
+        if ("archivo".equals(tipo)) {
+            objeto = EspacioUtils.obtenerArchivoDesdeRuta(estructuraOrigen, ruta);
+        } else if ("directorio".equals(tipo)) {
+            objeto = EspacioUtils.obtenerDirectorioDesdeRuta(estructuraOrigen, ruta);
+        } else {
+            return ResponseEntity.badRequest().body("Tipo no válido.");
+        }
+
+        if (objeto == null) return ResponseEntity.badRequest().body("Elemento no encontrado.");
+
+        // Verifica que no exista duplicado
         for (Map<String, Object> item : contenidoCompartida) {
-            if (item.get("tipo").equals("archivo") &&
-                item.get("nombre").equals(archivo.get("nombre")) &&
-                item.get("extension").equals(archivo.get("extension"))) {
-                return ResponseEntity.badRequest().body("Ya existe un archivo con ese nombre en la carpeta compartida.");
+            if (item.get("nombre").equals(objeto.get("nombre")) &&
+                item.get("tipo").equals(objeto.get("tipo"))) {
+                return ResponseEntity.badRequest().body("Ya existe un elemento con ese nombre en 'compartida'.");
             }
         }
 
-        // Copiar el archivo
-        contenidoCompartida.add(new HashMap<>(archivo));
+        // Copia profunda del elemento (directorio o archivo)
+        Map<String, Object> copia = mapper.readValue(mapper.writeValueAsString(objeto), Map.class);
+        contenidoCompartida.add(copia);
 
-        // Guardar JSON destino
         mapper.writeValue(Paths.get(pathDestino).toFile(), jsonDestino);
 
-        return ResponseEntity.ok("Archivo compartido con éxito.");
+        return ResponseEntity.ok(tipo.equals("directorio")
+            ? "Directorio compartido con éxito."
+            : "Archivo compartido con éxito.");
     } catch (IOException e) {
-        return ResponseEntity.status(500).body("Error al compartir archivo: " + e.getMessage());
+        return ResponseEntity.status(500).body("Error al compartir: " + e.getMessage());
     }
 }
 

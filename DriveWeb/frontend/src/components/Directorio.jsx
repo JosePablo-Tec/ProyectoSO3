@@ -46,7 +46,7 @@ function Directorio({
         console.error(err);
         setEspacio({ total: 0, usado: 0, disponible: 0 });
       });
-  }, [usuario, ruta]);
+  }, [usuario]);
 
   const crearDirectorio = () => {
     const yaExiste = contenido.some(
@@ -200,13 +200,16 @@ function Directorio({
       });
   };
 
-  const compartirArchivo = (archivo) => {
+  const compartirArchivo = (item) => {
     const destinatario = window.prompt(
-      "¿A qué usuario deseas compartir este archivo?"
+      `¿A qué usuario deseas compartir este ${
+        item.tipo === "directorio" ? "directorio" : "archivo"
+      }?`
     );
     if (!destinatario) return;
 
-    const rutaArchivo = ruta + "/" + archivo.nombre + ".txt";
+    const rutaItem =
+      ruta + "/" + item.nombre + (item.tipo === "archivo" ? ".txt" : "");
 
     fetch("/api/user/share", {
       method: "POST",
@@ -214,7 +217,8 @@ function Directorio({
       body: JSON.stringify({
         usuarioOrigen: usuario,
         usuarioDestino: destinatario,
-        ruta: rutaArchivo,
+        ruta: rutaItem,
+        tipo: item.tipo,
       }),
     })
       .then((res) => res.text())
@@ -222,8 +226,8 @@ function Directorio({
         alert(msg);
       })
       .catch((err) => {
-        console.error("Error al compartir archivo:", err);
-        alert("Ocurrió un error al intentar compartir el archivo.");
+        console.error("Error al compartir:", err);
+        alert("Ocurrió un error al intentar compartir.");
       });
   };
 
@@ -315,6 +319,33 @@ function Directorio({
     }
   };
 
+  const borrarDirectorio = (nombre) => {
+    if (!window.confirm(`¿Seguro que deseas borrar el directorio "${nombre}"?`))
+      return;
+
+    const rutaCompleta = ruta + "/" + nombre;
+
+    fetch("/api/user/deleteDir", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: usuario, ruta: rutaCompleta }),
+    })
+      .then((res) => res.text())
+      .then((msg) => {
+        setMensaje(msg);
+        // Actualiza contenido visual
+        setContenido((prev) =>
+          prev.filter(
+            (item) => !(item.tipo === "directorio" && item.nombre === nombre)
+          )
+        );
+      })
+      .catch((err) => {
+        console.error("Error al borrar directorio:", err);
+        alert("Error al borrar el directorio.");
+      });
+  };
+
   const renderContenido = (contenido) => {
     return (Array.isArray(contenido) ? contenido : []).map((item, i) =>
       item.tipo === "archivo" ? (
@@ -347,10 +378,9 @@ function Directorio({
                 📤 Compartir
               </button>
             )}{" "}
-            <button onClick={() => verEditarArchivo(item)}>
-              📄 Ver / Editar
+            <button onClick={() => borrarDirectorio(item.nombre)}>
+              🗑️ Borrar
             </button>
-            <button onClick={() => borrarArchivo(item)}>🗑️ Borrar</button>
           </>
         </li>
       )
