@@ -1,12 +1,15 @@
 package fileSystemSO3.controller;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.LocalDateTime;
 import java.util.*;
 import fileSystemSO3.util.EspacioUtils;
@@ -252,7 +255,39 @@ public ResponseEntity<String> editarArchivo(@RequestBody Map<String, String> bod
 }
 
 
+@PostMapping("/propiedades")
+public ResponseEntity<Map<String, Object>> verPropiedades(@RequestBody Map<String, String> datos) {
+    String username = datos.get("username");
+    String rutaRelativa = datos.get("ruta");
 
+    try {
+        Path jsonPath = Paths.get("src/main/java/fileSystemSO3/storage/users", username + ".json");
+        if (!Files.exists(jsonPath)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Usuario no encontrado"));
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> json = mapper.readValue(Files.readString(jsonPath), Map.class);
+        Map<String, Object> estructura = (Map<String, Object>) json.get("estructura");
+
+        Map<String, Object> elemento = EspacioUtils.obtenerArchivoDesdeRuta(estructura, rutaRelativa);
+        if (elemento == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Elemento no encontrado"));
+        }
+
+        Map<String, Object> props = new LinkedHashMap<>();
+        props.put("nombre", elemento.get("nombre"));
+        props.put("tipo", elemento.get("tipo"));
+        props.put("extension", elemento.get("extension"));
+        props.put("tamaño", elemento.get("tamano"));
+        props.put("fechaCreacion", elemento.get("fechaCreacion"));
+        props.put("fechaModificacion", elemento.get("fechaModificacion"));
+
+        return ResponseEntity.ok(props);
+    } catch (IOException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Error al leer JSON"));
+    }
+}
 
 
 }

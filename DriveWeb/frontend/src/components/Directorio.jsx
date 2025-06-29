@@ -19,6 +19,9 @@ function Directorio({
   const [contenidoEdicion, setContenidoEdicion] = useState("");
   const [mostrarEditor, setMostrarEditor] = useState(false);
 
+  const [mostrarProps, setMostrarProps] = useState(false);
+  const [propiedadesActuales, setPropiedadesActuales] = useState({});
+
   useEffect(() => {
     fetch("/api/user/ruta", {
       method: "POST",
@@ -346,6 +349,147 @@ function Directorio({
       });
   };
 
+  const verPropiedades = async (item) => {
+    const rutaItem = `${ruta}/${item.nombre}${
+      item.tipo === "archivo" ? ".txt" : ""
+    }`;
+
+    try {
+      const res = await fetch("/api/user/propiedades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: usuario, ruta: rutaItem }),
+      });
+
+      const data = await res.json();
+      setPropiedadesActuales(data);
+      setMostrarProps(true);
+    } catch (err) {
+      console.error("Error al obtener propiedades:", err);
+      alert("No se pudieron obtener las propiedades.");
+    }
+  };
+
+  const renderContenido = (contenido) => {
+    return (Array.isArray(contenido) ? contenido : []).map((item, i) => (
+      <li
+        key={i}
+        className={item.tipo === "directorio" ? "carpeta-clic" : "archivo"}
+        onClick={
+          item.tipo === "directorio"
+            ? () => entrarADirectorio(item.nombre)
+            : undefined
+        }
+      >
+        {item.tipo === "archivo"
+          ? `📄 ${item.nombre}.${item.extension}`
+          : `📁 ${item.nombre}`}
+        <>
+          {ruta !== "/raiz" && (
+            <button onClick={() => compartirArchivo(item)}>📤 Compartir</button>
+          )}
+          {item.tipo === "archivo" && item.extension === "txt" && (
+            <button onClick={() => verEditarArchivo(item)}>
+              📄 Ver / Editar
+            </button>
+          )}
+          <button onClick={() => verPropiedades(item)}>ℹ️ Propiedades</button>
+          {item.tipo === "archivo" ? (
+            <button onClick={() => borrarArchivo(item)}>🗑️ Borrar</button>
+          ) : (
+            <button onClick={() => borrarDirectorio(item.nombre)}>
+              🗑️ Borrar
+            </button>
+          )}
+        </>
+      </li>
+    ));
+  };
+
+  return (
+    <div className="directorio-container">
+      <h2>
+        {usuario} - {ruta}
+      </h2>
+      <p>
+        Espacio total: {espacio.total} bytes | Usado: {espacio.usado} bytes |
+        Disponible: {espacio.disponible} bytes
+      </p>
+
+      <div className="botones">
+        <button onClick={volverAtras}>🔙 Volver</button>
+        <button onClick={() => setMostrarModal(true)}>
+          📁 Crear directorio
+        </button>
+        <label className="subir-archivo-btn">
+          📤 Subir archivo
+          <input type="file" accept=".txt" onChange={handleArchivo} hidden />
+        </label>
+      </div>
+
+      <ul className="contenido-lista">{renderContenido(contenido)}</ul>
+      {mensaje && <p className="mensaje">{mensaje}</p>}
+
+      {mostrarModal && (
+        <div className="modal">
+          <div className="modal-contenido">
+            <h3>Nuevo directorio</h3>
+            <input
+              type="text"
+              placeholder="Nombre del directorio"
+              value={nombreNuevoDir}
+              onChange={(e) => setNombreNuevoDir(e.target.value)}
+            />
+            <div className="modal-botones">
+              <button onClick={crearDirectorio}>Crear</button>
+              <button onClick={() => setMostrarModal(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mostrarEditor && (
+        <div className="modal">
+          <div className="modal-contenido">
+            <h3>
+              Editando: {archivoActual.nombre}.{archivoActual.extension}
+            </h3>
+            <textarea
+              value={contenidoEdicion}
+              onChange={(e) => setContenidoEdicion(e.target.value)}
+              rows={15}
+              style={{ width: "100%" }}
+            />
+            <div className="modal-botones">
+              <button onClick={guardarCambiosArchivo}>Guardar</button>
+              <button onClick={() => setMostrarEditor(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mostrarProps && (
+        <div className="modal">
+          <div className="modal-contenido">
+            <h3>Propiedades</h3>
+            <ul>
+              {Object.entries(propiedadesActuales).map(([clave, valor]) => (
+                <li key={clave}>
+                  <strong>{clave}:</strong> {valor}
+                </li>
+              ))}
+            </ul>
+            <button onClick={() => setMostrarProps(false)}>Cerrar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default Directorio;
+
+/*
   const renderContenido = (contenido) => {
     return (Array.isArray(contenido) ? contenido : []).map((item, i) =>
       item.tipo === "archivo" ? (
@@ -453,3 +597,4 @@ function Directorio({
 }
 
 export default Directorio;
+*/
