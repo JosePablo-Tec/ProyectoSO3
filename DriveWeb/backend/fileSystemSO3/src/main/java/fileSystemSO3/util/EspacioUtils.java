@@ -52,31 +52,53 @@ public class EspacioUtils {
 
   @SuppressWarnings("unchecked")
   public static Map<String, Object> obtenerArchivoDesdeRuta(Map<String, Object> estructura, String ruta) {
-    String[] partes = ruta.split("/");
-    Map<String, Object> actual = estructura;
+    if (estructura == null || ruta == null || ruta.isEmpty()) return null;
+
+    // Quitar slash inicial y dividir
+    String[] partes = ruta.replaceFirst("^/", "").split("/");
+
+    if (partes.length < 2) return null; // Debe tener al menos carpeta y archivo
+
+    // Obtener carpeta principal (ej: "raiz" o "compartida")
+    String carpetaPrincipal = partes[0];
+    Map<String, Object> directorio = (Map<String, Object>) estructura.get(carpetaPrincipal);
+    if (directorio == null) return null;
+
     for (int i = 1; i < partes.length - 1; i++) {
-      String nombreDir = partes[i];
-      Map<String, Object> siguiente = null;
-      List<Map<String, Object>> contenido = (List<Map<String, Object>>) actual.get("contenido");
-      for (Map<String, Object> item : contenido) {
-        if ("directorio".equals(item.get("tipo")) && nombreDir.equals(item.get("nombre"))) {
-          siguiente = item;
-          break;
+        String subdir = partes[i];
+        List<Map<String, Object>> contenido = (List<Map<String, Object>>) directorio.get("contenido");
+        if (contenido == null) return null;
+
+        boolean encontrado = false;
+        for (Map<String, Object> item : contenido) {
+            if ("directorio".equals(item.get("tipo")) && subdir.equals(item.get("nombre"))) {
+                directorio = item;
+                encontrado = true;
+                break;
+            }
         }
-      }
-      if (siguiente == null) return null;
-      actual = siguiente;
+        if (!encontrado) return null;
     }
 
-    String nombreArchivo = partes[partes.length - 1].replace(".txt", "");
-    List<Map<String, Object>> contenido = (List<Map<String, Object>>) actual.get("contenido");
-    for (Map<String, Object> item : contenido) {
-      if ("archivo".equals(item.get("tipo")) && nombreArchivo.equals(item.get("nombre")) && "txt".equals(item.get("extension"))) {
-        return item;
-      }
+    // Buscar el archivo
+    String archivoNombre = partes[partes.length - 1];
+    String nombreSinExt = archivoNombre.contains(".") ? archivoNombre.substring(0, archivoNombre.lastIndexOf(".")) : archivoNombre;
+    String extension = archivoNombre.contains(".") ? archivoNombre.substring(archivoNombre.lastIndexOf(".") + 1) : "";
+
+    List<Map<String, Object>> contenidoFinal = (List<Map<String, Object>>) directorio.get("contenido");
+    if (contenidoFinal == null) return null;
+
+    for (Map<String, Object> item : contenidoFinal) {
+        if ("archivo".equals(item.get("tipo")) &&
+            nombreSinExt.equals(item.get("nombre")) &&
+            extension.equals(item.get("extension"))) {
+            return item;
+        }
     }
+
     return null;
 }
+
 
 
 }

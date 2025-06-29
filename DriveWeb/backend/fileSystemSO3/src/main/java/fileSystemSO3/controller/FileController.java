@@ -87,48 +87,56 @@ public class FileController {
 
   @PostMapping("/share")
 public ResponseEntity<String> compartirArchivo(@RequestBody Map<String, String> body) {
-  String usuarioOrigen = body.get("usuarioOrigen");
-  String usuarioDestino = body.get("usuarioDestino");
-  String rutaArchivo = body.get("ruta"); 
+    String usuarioOrigen = body.get("usuarioOrigen");
+    String usuarioDestino = body.get("usuarioDestino");
+    String rutaArchivo = body.get("ruta"); 
 
-  String base = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/";
-  String pathOrigen = base + usuarioOrigen + ".json";
-  String pathDestino = base + usuarioDestino + ".json";
+    String base = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/";
+    String pathOrigen = base + usuarioOrigen + ".json";
+    String pathDestino = base + usuarioDestino + ".json";
 
-  try {
-    ObjectMapper mapper = new ObjectMapper();
-    Map<String, Object> jsonOrigen = mapper.readValue(Files.readString(Paths.get(pathOrigen)), Map.class);
-    Map<String, Object> jsonDestino = mapper.readValue(Files.readString(Paths.get(pathDestino)), Map.class);
+    try {
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> jsonOrigen = mapper.readValue(Files.readString(Paths.get(pathOrigen)), Map.class);
+        Map<String, Object> jsonDestino = mapper.readValue(Files.readString(Paths.get(pathDestino)), Map.class);
 
-    Map<String, Object> estructuraOrigen = (Map<String, Object>) jsonOrigen.get("estructura");
-    Map<String, Object> archivo = EspacioUtils.obtenerArchivoDesdeRuta(estructuraOrigen, rutaArchivo);
+        Map<String, Object> estructuraOrigen = (Map<String, Object>) jsonOrigen.get("estructura");
+        Map<String, Object> archivo = EspacioUtils.obtenerArchivoDesdeRuta(estructuraOrigen, rutaArchivo);
 
-    if (archivo == null) return ResponseEntity.badRequest().body("Archivo no encontrado o no es .txt");
+        if (archivo == null) return ResponseEntity.badRequest().body("Archivo no encontrado o no es .txt");
 
-    Map<String, Object> estructuraDestino = (Map<String, Object>) jsonDestino.get("estructura");
-    Map<String, Object> compartida = (Map<String, Object>) estructuraDestino.get("compartida");
-    List<Map<String, Object>> contenidoCompartida = (List<Map<String, Object>>) compartida.get("contenido");
+        Map<String, Object> estructuraDestino = (Map<String, Object>) jsonDestino.get("estructura");
+        Map<String, Object> dirCompartida = (Map<String, Object>) estructuraDestino.get("compartida");
 
-    // Validar que no se duplique
-    for (Map<String, Object> item : contenidoCompartida) {
-      if (item.get("tipo").equals("archivo") &&
-          item.get("nombre").equals(archivo.get("nombre")) &&
-          item.get("extension").equals(archivo.get("extension"))) {
-        return ResponseEntity.badRequest().body("Ya existe un archivo con ese nombre en la carpeta compartida.");
-      }
+        if (dirCompartida == null) {
+            return ResponseEntity.badRequest().body("No se encontró la carpeta 'compartida' en el usuario destino.");
+        }
+
+        List<Map<String, Object>> contenidoCompartida = (List<Map<String, Object>>) dirCompartida.get("contenido");
+        if (contenidoCompartida == null) {
+            return ResponseEntity.status(500).body("La carpeta 'compartida' no tiene contenido.");
+        }
+
+        for (Map<String, Object> item : contenidoCompartida) {
+            if (item.get("tipo").equals("archivo") &&
+                item.get("nombre").equals(archivo.get("nombre")) &&
+                item.get("extension").equals(archivo.get("extension"))) {
+                return ResponseEntity.badRequest().body("Ya existe un archivo con ese nombre en la carpeta compartida.");
+            }
+        }
+
+        // Copiar el archivo
+        contenidoCompartida.add(new HashMap<>(archivo));
+
+        // Guardar JSON destino
+        mapper.writeValue(Paths.get(pathDestino).toFile(), jsonDestino);
+
+        return ResponseEntity.ok("Archivo compartido con éxito.");
+    } catch (IOException e) {
+        return ResponseEntity.status(500).body("Error al compartir archivo: " + e.getMessage());
     }
-
-    // Copiar el archivo
-    contenidoCompartida.add(new HashMap<>(archivo));
-
-    // Guardar el JSON destino
-    mapper.writeValue(Paths.get(pathDestino).toFile(), jsonDestino);
-
-    return ResponseEntity.ok("Archivo compartido con éxito.");
-  } catch (IOException e) {
-    return ResponseEntity.status(500).body("Error al compartir archivo: " + e.getMessage());
-  }
 }
+
 
   @PostMapping("/delete")
   public ResponseEntity<String> eliminarArchivo(@RequestBody Map<String, String> payload) {
@@ -184,4 +192,56 @@ public ResponseEntity<String> compartirArchivo(@RequestBody Map<String, String> 
         return ResponseEntity.status(500).body("Error al eliminar el archivo: " + e.getMessage());
     }
   }
+
+    @PostMapping("/ver")
+  public ResponseEntity<String> verArchivo(@RequestBody Map<String, String> body) {
+  String username = body.get("username");
+  String ruta = body.get("ruta");
+
+  try {
+    String pathJson = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/" + username + ".json";
+    ObjectMapper mapper = new ObjectMapper();
+    Map<String, Object> json = mapper.readValue(Files.readString(Paths.get(pathJson)), Map.class);
+    Map<String, Object> estructura = (Map<String, Object>) json.get("estructura");
+
+    Map<String, Object> archivo = EspacioUtils.obtenerArchivoDesdeRuta(estructura, ruta);
+    if (archivo == null) return ResponseEntity.status(404).body("Archivo no encontrado");
+
+    return ResponseEntity.ok((String) archivo.get("contenido"));
+  } catch (IOException e) {
+    return ResponseEntity.status(500).body("Error: " + e.getMessage());
+  }
+}
+
+@PostMapping("/editar")
+public ResponseEntity<String> editarArchivo(@RequestBody Map<String, String> body) {
+  String username = body.get("username");
+  String ruta = body.get("ruta");
+  String nuevoContenido = body.get("contenido");
+
+  try {
+    String pathJson = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/" + username + ".json";
+    ObjectMapper mapper = new ObjectMapper();
+    Map<String, Object> json = mapper.readValue(Files.readString(Paths.get(pathJson)), Map.class);
+    Map<String, Object> estructura = (Map<String, Object>) json.get("estructura");
+
+    Map<String, Object> archivo = EspacioUtils.obtenerArchivoDesdeRuta(estructura, ruta);
+    if (archivo == null) return ResponseEntity.status(404).body("Archivo no encontrado");
+
+    archivo.put("contenido", nuevoContenido);
+    archivo.put("tamano", nuevoContenido.length());
+    archivo.put("fechaModificacion", LocalDateTime.now().toString());
+
+    mapper.writeValue(Paths.get(pathJson).toFile(), json);
+
+    return ResponseEntity.ok("Archivo actualizado con éxito");
+  } catch (IOException e) {
+    return ResponseEntity.status(500).body("Error: " + e.getMessage());
+  }
+}
+
+
+
+
+
 }

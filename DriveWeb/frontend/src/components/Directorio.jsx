@@ -15,6 +15,10 @@ function Directorio({
   const [historial, setHistorial] = useState([]);
   const [espacio, setEspacio] = useState({ total: 0, usado: 0, disponible: 0 });
 
+  const [archivoActual, setArchivoActual] = useState(null);
+  const [contenidoEdicion, setContenidoEdicion] = useState("");
+  const [mostrarEditor, setMostrarEditor] = useState(false);
+
   useEffect(() => {
     fetch("/api/user/ruta", {
       method: "POST",
@@ -149,7 +153,6 @@ function Directorio({
           alert(msg);
           return;
         }
-
         // Actualizar contenido directamente
         const nuevaRespuesta = await fetch("/api/user/ruta", {
           method: "POST",
@@ -168,7 +171,6 @@ function Directorio({
 
     lector.readAsText(archivo);
   };
-
   const entrarADirectorio = (nombre) => {
     const nuevaRuta = ruta + "/" + nombre;
     setHistorial((prev) => [...prev, ruta]);
@@ -265,6 +267,54 @@ function Directorio({
       });
   };
 
+  const verEditarArchivo = async (archivo) => {
+    const rutaArchivo = ruta + "/" + archivo.nombre + "." + archivo.extension;
+
+    try {
+      const res = await fetch("/api/user/ver", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: usuario, ruta: rutaArchivo }),
+      });
+
+      if (!res.ok) throw new Error("Error al cargar archivo");
+
+      const data = await res.text();
+      setContenidoEdicion(data);
+      setArchivoActual(archivo);
+      setMostrarEditor(true);
+    } catch (err) {
+      console.error("Error al abrir archivo:", err);
+      alert("No se pudo cargar el archivo.");
+    }
+  };
+
+  const guardarCambiosArchivo = async () => {
+    const rutaArchivo =
+      ruta + "/" + archivoActual.nombre + "." + archivoActual.extension;
+
+    try {
+      const res = await fetch("/api/user/editar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: usuario,
+          ruta: rutaArchivo,
+          contenido: contenidoEdicion,
+        }),
+      });
+
+      const msg = await res.text();
+      alert(msg);
+      setMostrarEditor(false);
+      setArchivoActual(null);
+      actualizarEspacio();
+    } catch (err) {
+      console.error("Error al guardar archivo:", err);
+      alert("No se pudo guardar el archivo.");
+    }
+  };
+
   const renderContenido = (contenido) => {
     return (Array.isArray(contenido) ? contenido : []).map((item, i) =>
       item.tipo === "archivo" ? (
@@ -272,9 +322,14 @@ function Directorio({
           📄 {item.nombre}.{item.extension}{" "}
           {item.extension === "txt" && (
             <>
-              <button onClick={() => compartirArchivo(item)}>
-                📤 Compartir
-              </button>{" "}
+              {ruta !== "/raiz" && (
+                <button onClick={() => compartirArchivo(item)}>
+                  📤 Compartir
+                </button>
+              )}{" "}
+              <button onClick={() => verEditarArchivo(item)}>
+                📄 Ver / Editar
+              </button>
               <button onClick={() => borrarArchivo(item)}>🗑️ Borrar</button>
             </>
           )}
@@ -286,6 +341,17 @@ function Directorio({
           onClick={() => entrarADirectorio(item.nombre)}
         >
           📁 {item.nombre}
+          <>
+            {ruta !== "/raiz" && (
+              <button onClick={() => compartirArchivo(item)}>
+                📤 Compartir
+              </button>
+            )}{" "}
+            <button onClick={() => verEditarArchivo(item)}>
+              📄 Ver / Editar
+            </button>
+            <button onClick={() => borrarArchivo(item)}>🗑️ Borrar</button>
+          </>
         </li>
       )
     );
@@ -328,6 +394,26 @@ function Directorio({
             <div className="modal-botones">
               <button onClick={crearDirectorio}>Crear</button>
               <button onClick={() => setMostrarModal(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mostrarEditor && (
+        <div className="modal">
+          <div className="modal-contenido">
+            <h3>
+              Editando: {archivoActual.nombre}.{archivoActual.extension}
+            </h3>
+            <textarea
+              value={contenidoEdicion}
+              onChange={(e) => setContenidoEdicion(e.target.value)}
+              rows={15}
+              style={{ width: "100%" }}
+            />
+            <div className="modal-botones">
+              <button onClick={guardarCambiosArchivo}>Guardar</button>
+              <button onClick={() => setMostrarEditor(false)}>Cancelar</button>
             </div>
           </div>
         </div>
