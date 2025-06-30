@@ -370,6 +370,98 @@ function Directorio({
     }
   };
 
+  const descargarArchivo = async (archivo) => {
+    const rutaArchivo = ruta + "/" + archivo.nombre + "." + archivo.extension;    
+    try {
+      const params = new URLSearchParams({
+        username: usuario,
+        ruta: rutaArchivo,
+      });
+
+      const res = await fetch(`/api/user/download?${params.toString()}`);
+      
+      if (!res.ok) throw new Error("Error al descargar el archivo");
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = archivo.nombre + "." + archivo.extension;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error al descargar archivo:", err);
+      alert("No se pudo descargar el archivo.");
+    }
+  };
+
+  const copiarElemento = async (item) => {
+    const rutaOrigen = ruta + "/" + item.nombre + (item.tipo === "archivo" ? ".txt" : "");
+    const destino = window.prompt("¿A qué ruta desea copiar el elemento?", "/raiz");
+
+    if (!destino) return;
+
+    try {
+      const res = await fetch("/api/user/copiar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: usuario,
+          origen: rutaOrigen,
+          destino: destino,
+          tipo: item.tipo,
+        }),
+      });
+
+      const msg = await res.text();
+      alert(msg);
+    } catch (err) {
+      console.error("Error al copiar:", err);
+      alert("No se pudo copiar el elemento.");
+    }
+  };
+
+  const moverElemento = async (item) => {
+    const nuevaRuta = prompt(
+      `¿A qué ruta deseas mover "${item.nombre}"?\nEjemplo: /raiz/Test2`, "/raiz"
+    ); 
+    if (!nuevaRuta) return;
+
+    const rutaItem = `${ruta}/${item.nombre}${item.tipo === "archivo" ? ".txt" : ""}`; 
+
+    try {
+      const res = await fetch("/api/user/move", {  // <-- "/move", no "/mover"
+        method: "POST",
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ 
+          username: usuario, 
+          origen: rutaItem,
+          destino: nuevaRuta,
+          tipo: item.tipo
+        }),
+      });
+
+      const msg = await res.text();
+      alert(msg);
+
+      // Refrescar vista 
+      const nuevaRespuesta = await fetch("/api/user/ruta", { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ username: usuario, ruta }), 
+      });
+
+      const nuevoContenido = await nuevaRespuesta.json();
+      setContenido(nuevoContenido);
+    } catch (err) {
+      console.error("Error al mover elemento:", err);
+      alert("No se pudo mover el elemento.");
+    }
+  };
+
+
   const renderContenido = (contenido) => {
     return (Array.isArray(contenido) ? contenido : []).map((item, i) => (
       <li
@@ -385,15 +477,16 @@ function Directorio({
           ? `📄 ${item.nombre}.${item.extension}`
           : `📁 ${item.nombre}`}
         <>
-          {ruta !== "/raiz" && (
-            <button onClick={() => compartirArchivo(item)}>📤 Compartir</button>
-          )}
+          <button onClick={() => compartirArchivo(item)}>📤 Compartir</button>
+
           {item.tipo === "archivo" && item.extension === "txt" && (
             <button onClick={() => verEditarArchivo(item)}>
               📄 Ver / Editar
             </button>
           )}
           <button onClick={() => verPropiedades(item)}>ℹ️ Propiedades</button>
+          <button onClick={() => moverElemento(item)}>📁 Mover</button>
+          <button onClick={() => copiarElemento(item)}>📄 Copiar</button>
           {item.tipo === "archivo" ? (
             <button onClick={() => borrarArchivo(item)}>🗑️ Borrar</button>
           ) : (
@@ -401,6 +494,12 @@ function Directorio({
               🗑️ Borrar
             </button>
           )}
+          {item.tipo === "archivo" && item.extension === "txt" && (
+            <button onClick={() => descargarArchivo(item)}>
+              ⬇️ Descargar
+            </button>
+          )}
+
         </>
       </li>
     ));
@@ -486,115 +585,4 @@ function Directorio({
     </div>
   );
 }
-
 export default Directorio;
-
-/*
-  const renderContenido = (contenido) => {
-    return (Array.isArray(contenido) ? contenido : []).map((item, i) =>
-      item.tipo === "archivo" ? (
-        <li key={i}>
-          📄 {item.nombre}.{item.extension}{" "}
-          {item.extension === "txt" && (
-            <>
-              {ruta !== "/raiz" && (
-                <button onClick={() => compartirArchivo(item)}>
-                  📤 Compartir
-                </button>
-              )}{" "}
-              <button onClick={() => verEditarArchivo(item)}>
-                📄 Ver / Editar
-              </button>
-              <button onClick={() => borrarArchivo(item)}>🗑️ Borrar</button>
-            </>
-          )}
-        </li>
-      ) : (
-        <li
-          key={i}
-          className="carpeta-clic"
-          onClick={() => entrarADirectorio(item.nombre)}
-        >
-          📁 {item.nombre}
-          <>
-            {ruta !== "/raiz" && (
-              <button onClick={() => compartirArchivo(item)}>
-                📤 Compartir
-              </button>
-            )}{" "}
-            <button onClick={() => borrarDirectorio(item.nombre)}>
-              🗑️ Borrar
-            </button>
-          </>
-        </li>
-      )
-    );
-  };
-
-  return (
-    <div className="directorio-container">
-      <h2>
-        {usuario} - {ruta}
-      </h2>
-      <p>
-        Espacio total: {espacio.total} bytes | Usado: {espacio.usado} bytes |
-        Disponible: {espacio.disponible} bytes
-      </p>
-
-      <div className="botones">
-        <button onClick={volverAtras}>🔙 Volver</button>
-        <button onClick={() => setMostrarModal(true)}>
-          📁 Crear directorio
-        </button>
-        <label className="subir-archivo-btn">
-          📤 Subir archivo
-          <input type="file" accept=".txt" onChange={handleArchivo} hidden />
-        </label>
-      </div>
-
-      <ul className="contenido-lista">{renderContenido(contenido)}</ul>
-      {mensaje && <p className="mensaje">{mensaje}</p>}
-
-      {mostrarModal && (
-        <div className="modal">
-          <div className="modal-contenido">
-            <h3>Nuevo directorio</h3>
-            <input
-              type="text"
-              placeholder="Nombre del directorio"
-              value={nombreNuevoDir}
-              onChange={(e) => setNombreNuevoDir(e.target.value)}
-            />
-            <div className="modal-botones">
-              <button onClick={crearDirectorio}>Crear</button>
-              <button onClick={() => setMostrarModal(false)}>Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {mostrarEditor && (
-        <div className="modal">
-          <div className="modal-contenido">
-            <h3>
-              Editando: {archivoActual.nombre}.{archivoActual.extension}
-            </h3>
-            <textarea
-              value={contenidoEdicion}
-              onChange={(e) => setContenidoEdicion(e.target.value)}
-              rows={15}
-              style={{ width: "100%" }}
-            />
-            <div className="modal-botones">
-              <button onClick={guardarCambiosArchivo}>Guardar</button>
-              <button onClick={() => setMostrarEditor(false)}>Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default Directorio;
-*/

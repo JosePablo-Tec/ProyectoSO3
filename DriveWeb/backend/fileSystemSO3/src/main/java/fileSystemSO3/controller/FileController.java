@@ -4,6 +4,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.HttpHeaders;
+import java.nio.charset.StandardCharsets;
+
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -89,7 +92,7 @@ public class FileController {
 
 
   @PostMapping("/share")
-public ResponseEntity<String> compartirArchivo(@RequestBody Map<String, String> body) {
+  public ResponseEntity<String> compartirArchivo(@RequestBody Map<String, String> body) {
     String usuarioOrigen = body.get("usuarioOrigen");
     String usuarioDestino = body.get("usuarioDestino");
     String ruta = body.get("ruta");
@@ -149,7 +152,7 @@ public ResponseEntity<String> compartirArchivo(@RequestBody Map<String, String> 
     } catch (IOException e) {
         return ResponseEntity.status(500).body("Error al compartir: " + e.getMessage());
     }
-}
+  }
 
 
   @PostMapping("/delete")
@@ -207,25 +210,25 @@ public ResponseEntity<String> compartirArchivo(@RequestBody Map<String, String> 
     }
   }
 
-    @PostMapping("/ver")
+  @PostMapping("/ver")
   public ResponseEntity<String> verArchivo(@RequestBody Map<String, String> body) {
-  String username = body.get("username");
-  String ruta = body.get("ruta");
+    String username = body.get("username");
+    String ruta = body.get("ruta");
 
-  try {
-    String pathJson = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/" + username + ".json";
-    ObjectMapper mapper = new ObjectMapper();
-    Map<String, Object> json = mapper.readValue(Files.readString(Paths.get(pathJson)), Map.class);
-    Map<String, Object> estructura = (Map<String, Object>) json.get("estructura");
+    try {
+      String pathJson = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/" + username + ".json";
+      ObjectMapper mapper = new ObjectMapper();
+      Map<String, Object> json = mapper.readValue(Files.readString(Paths.get(pathJson)), Map.class);
+      Map<String, Object> estructura = (Map<String, Object>) json.get("estructura");
 
-    Map<String, Object> archivo = EspacioUtils.obtenerArchivoDesdeRuta(estructura, ruta);
-    if (archivo == null) return ResponseEntity.status(404).body("Archivo no encontrado");
+      Map<String, Object> archivo = EspacioUtils.obtenerArchivoDesdeRuta(estructura, ruta);
+      if (archivo == null) return ResponseEntity.status(404).body("Archivo no encontrado");
 
-    return ResponseEntity.ok((String) archivo.get("contenido"));
-  } catch (IOException e) {
-    return ResponseEntity.status(500).body("Error: " + e.getMessage());
+      return ResponseEntity.ok((String) archivo.get("contenido"));
+    } catch (IOException e) {
+      return ResponseEntity.status(500).body("Error: " + e.getMessage());
+    }
   }
-}
 
 @PostMapping("/editar")
 public ResponseEntity<String> editarArchivo(@RequestBody Map<String, String> body) {
@@ -255,8 +258,8 @@ public ResponseEntity<String> editarArchivo(@RequestBody Map<String, String> bod
 }
 
 
-@PostMapping("/propiedades")
-public ResponseEntity<Map<String, Object>> verPropiedades(@RequestBody Map<String, String> datos) {
+  @PostMapping("/propiedades")
+  public ResponseEntity<Map<String, Object>> verPropiedades(@RequestBody Map<String, String> datos) {
     String username = datos.get("username");
     String rutaRelativa = datos.get("ruta");
 
@@ -287,7 +290,97 @@ public ResponseEntity<Map<String, Object>> verPropiedades(@RequestBody Map<Strin
     } catch (IOException e) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Error al leer JSON"));
     }
-}
+  }
 
+  @GetMapping("/download")
+  public ResponseEntity<byte[]> descargarArchivo(
+        @RequestParam String username,
+        @RequestParam String ruta) {
+
+    try {
+        String pathJson = System.getProperty("user.dir") +
+                "/src/main/java/fileSystemSO3/storage/users/" + username + ".json";
+        ObjectMapper mapper = new ObjectMapper();
+        String jsonStr = Files.readString(Paths.get(pathJson));
+        Map<String, Object> usuario = mapper.readValue(jsonStr, Map.class);
+        Map<String, Object> estructura = (Map<String, Object>) usuario.get("estructura");
+        Map<String, Object> raiz = (Map<String, Object>) estructura.get("raiz");
+        Map<String, Object> archivo = EspacioUtils.obtenerArchivoDesdeRuta(estructura, ruta);
+
+        if (archivo == null) {
+            return ResponseEntity.status(404).body(null);
+        }
+
+        String nombre = archivo.get("nombre") + "." + archivo.get("extension");
+        String contenido = (String) archivo.get("contenido");
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + nombre + "\"")
+                .header(HttpHeaders.CONTENT_TYPE, "text/plain")
+                .body(contenido.getBytes(StandardCharsets.UTF_8));
+
+    } catch (IOException e) {
+        return ResponseEntity.status(500).body(null);
+    }
+  }
+
+  @PostMapping("/copiar")
+  public ResponseEntity<String> copiarElemento(@RequestBody Map<String, String> body) {
+    String username = body.get("username");
+    String origen = body.get("origen");
+    String destino = body.get("destino");
+    String tipo = body.getOrDefault("tipo", "archivo");
+
+    String pathJson = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/" + username + ".json";
+
+    try {
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> json = mapper.readValue(Files.readString(Paths.get(pathJson)), Map.class);
+        Map<String, Object> estructura = (Map<String, Object>) json.get("estructura");
+
+        boolean copiado = EspacioUtils.copiarElemento(estructura, origen, destino, tipo);
+        if (!copiado) return ResponseEntity.badRequest().body("No se pudo copiar el elemento. Verifique rutas y duplicados.");
+
+        mapper.writeValue(Paths.get(pathJson).toFile(), json);
+        return ResponseEntity.ok("Elemento copiado con éxito.");
+    } catch (IOException e) {
+        return ResponseEntity.status(500).body("Error al copiar: " + e.getMessage());
+    }
+  } 
+
+  @PostMapping("/move")
+  public ResponseEntity<String> moverElemento(@RequestBody Map<String, String> body) {
+    String username = body.get("username");
+    String origen = body.get("origen");
+    String destino = body.get("destino");
+    String tipo = body.get("tipo"); // "archivo" o "directorio"
+
+    if (username == null || origen == null || destino == null || tipo == null) {
+        return ResponseEntity.badRequest().body("Faltan parámetros requeridos.");
+    }
+
+    String basePath = System.getProperty("user.dir") + "/src/main/java/fileSystemSO3/storage/users/";
+    String pathUsuario = basePath + username + ".json";
+
+    try {
+        // Cargar JSON del usuario
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> jsonUsuario = mapper.readValue(Files.readString(Paths.get(pathUsuario)), Map.class);
+        Map<String, Object> estructura = (Map<String, Object>) jsonUsuario.get("estructura");
+
+        // Ejecutar la lógica de mover
+        boolean movido = EspacioUtils.moverElemento(estructura, origen, destino, tipo);
+        if (!movido) {
+            return ResponseEntity.status(400).body("No se pudo mover el elemento. Verifica si existe y si el destino es válido.");
+        }
+
+        // Guardar cambios
+        mapper.writeValue(Paths.get(pathUsuario).toFile(), jsonUsuario);
+        return ResponseEntity.ok("Elemento movido con éxito.");
+    } catch (IOException e) {
+        e.printStackTrace();
+        return ResponseEntity.status(500).body("Error interno al mover elemento: " + e.getMessage());
+    }
+  }
 
 }
